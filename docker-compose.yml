@@ -1,0 +1,66 @@
+services:
+  langflow:
+    image: langflowai/langflow:1.8.1
+    ports:
+      - "7860:7860"
+    environment:
+      - LANGFLOW_DATABASE_URL=postgresql://langflow:langflow@postgres:5432/langflow
+      - LANGFLOW_CONFIG_DIR=/app
+    volumes:
+      - langflow:/app/langflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:7860/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:17.9
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  vector:
+    image: timberio/vector:0.54.0-alpine
+    ports:
+      - "9090:9090"
+    volumes:
+      - vector:/var/lib/vector
+      - ./vector/vector.yaml:/etc/vector/vector.yaml
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  vault:
+    image: hashicorp/vault:1.21
+    command: [ "server" ]
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8200:8200"
+    environment:
+      - 'VAULT_LOCAL_CONFIG={"storage": {"file": {"path": "/vault/file"}}, "listener": [{"tcp": { "address": "0.0.0.0:8200", "tls_disable": true}}], "ui": true}'
+    volumes:
+      - vault:/vault/file
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres:
+  langflow:
+  vector:
+  vault:

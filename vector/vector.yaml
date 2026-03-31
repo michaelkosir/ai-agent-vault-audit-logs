@@ -1,0 +1,27 @@
+sources:
+  vault_tcp:
+    type: "socket"
+    address: "0.0.0.0:9000"
+    mode: "tcp"
+    decoding:
+      codec: "json"
+
+transforms:
+  process_vault_audit:
+    type: "remap"
+    inputs: ["vault_tcp"]
+    source: |
+      event = . 
+      
+      # rebuild
+      . = {}
+      .id = uuid_v7()
+      .ingested_at = now()
+      .payload = event
+
+sinks:
+  postgres:
+    type: "postgres"
+    inputs: ["process_vault_audit"]
+    endpoint: "postgresql://vault:vault@postgres:5432/vault"
+    table: "audit"
